@@ -9,7 +9,7 @@ GitHub repository.
 
 ```hcl
 module "cloud_build" {
-  source = "github.com/cybercapybara/terraform-google-cloud-build"
+  source = "github.com/moveeeax/terraform-google-cloud-build"
 
   project_id   = var.project_id
   name         = "deploy-main"
