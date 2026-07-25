@@ -12,3 +12,8 @@ output "name" {
   description = "Name of the build trigger."
   value       = google_cloudbuild_trigger.this.name
 }
+
+output "service_account" {
+  description = "Full resource name of the service account builds from this trigger run as."
+  value       = google_cloudbuild_trigger.this.service_account
+}
