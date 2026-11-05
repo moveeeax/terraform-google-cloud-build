@@ -20,7 +20,7 @@ resource "google_project_iam_member" "build_log_writer" {
 }
 
 module "cloud_build" {
-  source = "github.com/moveeeax/terraform-google-cloud-build"
+  source = "github.com/moveeeax/terraform-google-cloud-build?ref=v1.0.0"
 
   project_id      = var.project_id
   name            = "deploy-main"
