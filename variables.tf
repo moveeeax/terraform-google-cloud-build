@@ -86,7 +86,9 @@ variable "branch_regex" {
   description = <<-EOT
     RE2 regular expression matched against the pushed branch name. Matching is
     partial, so anchor it (`^main$`) unless you really mean a prefix match. The
-    name is matched without the `refs/heads/` prefix.
+    name is matched without the `refs/heads/` prefix. Used only by push
+    triggers without `tag_regex`; pull request triggers take their base branch
+    pattern from `pull_request.branch`.
   EOT
   type        = string
   default     = "^main$"
@@ -106,6 +108,92 @@ variable "branch_regex" {
   validation {
     condition     = !can(regex("refs/(heads|tags)/", var.branch_regex))
     error_message = "branch_regex is matched against the bare branch name, so a pattern containing 'refs/heads/' or 'refs/tags/' never fires. Use '^main$', not '^refs/heads/main$'."
+  }
+}
+
+variable "event" {
+  description = <<-EOT
+    Which GitHub event fires the trigger: `push` (a push to a branch matching
+    `branch_regex`, or to a tag matching `tag_regex`) or `pull_request` (a pull
+    request opened or updated against a base branch matching
+    `pull_request.branch`).
+  EOT
+  type        = string
+  default     = "push"
+
+  validation {
+    condition     = contains(["push", "pull_request"], var.event)
+    error_message = "event must be \"push\" or \"pull_request\"."
+  }
+}
+
+variable "tag_regex" {
+  description = <<-EOT
+    RE2 regular expression matched against the pushed tag name. When set, the
+    push trigger fires on tags instead of branches and `branch_regex` is not
+    used. Matching is partial, so anchor it (`^v[0-9]+\\.[0-9]+\\.[0-9]+$`). The
+    name is matched without the `refs/tags/` prefix. Only valid with
+    `event = "push"`.
+  EOT
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.tag_regex == null || try(length(var.tag_regex) > 0 && var.tag_regex == trimspace(var.tag_regex), false)
+    error_message = "tag_regex must be non-empty and free of leading/trailing whitespace; an empty or padded pattern either matches every tag or never fires."
+  }
+
+  validation {
+    condition     = var.tag_regex == null || can(regexall(var.tag_regex, "v1.0.0"))
+    error_message = "tag_regex is not a valid RE2 regular expression."
+  }
+
+  validation {
+    condition     = var.tag_regex == null || !can(regex("refs/(heads|tags)/", var.tag_regex))
+    error_message = "tag_regex is matched against the bare tag name, so a pattern containing 'refs/tags/' or 'refs/heads/' never fires. Use '^v.*$', not '^refs/tags/v.*$'."
+  }
+}
+
+variable "pull_request" {
+  description = <<-EOT
+    Pull request filter, required when `event = "pull_request"` and rejected
+    otherwise.
+
+    - `branch`: RE2 pattern matched against the pull request's base (target)
+      branch, without `refs/heads/`. Anchor it (`^main$`).
+    - `comment_control`: whether a build waits for a `/gcbrun` comment from a
+      repository owner or collaborator. `COMMENTS_ENABLED_FOR_EXTERNAL_CONTRIBUTORS_ONLY`
+      (default) gates pull requests from outside contributors only;
+      `COMMENTS_ENABLED` gates every pull request; `COMMENTS_DISABLED` builds
+      every pull request automatically, so anyone who can open one runs code as
+      the build identity.
+    - `invert_regex`: fire for base branches that do NOT match `branch`.
+  EOT
+  type = object({
+    branch          = string
+    comment_control = optional(string, "COMMENTS_ENABLED_FOR_EXTERNAL_CONTRIBUTORS_ONLY")
+    invert_regex    = optional(bool, false)
+  })
+  default = null
+
+  validation {
+    condition     = var.pull_request == null || try(length(var.pull_request.branch) > 0 && var.pull_request.branch == trimspace(var.pull_request.branch), false)
+    error_message = "pull_request.branch must be non-empty and free of leading/trailing whitespace; an empty or padded pattern either matches every branch or never fires."
+  }
+
+  validation {
+    condition     = var.pull_request == null || can(regexall(var.pull_request.branch, "main"))
+    error_message = "pull_request.branch is not a valid RE2 regular expression."
+  }
+
+  validation {
+    condition     = var.pull_request == null || !can(regex("refs/(heads|tags)/", var.pull_request.branch))
+    error_message = "pull_request.branch is matched against the bare base branch name, so a pattern containing 'refs/heads/' never fires. Use '^main$', not '^refs/heads/main$'."
+  }
+
+  validation {
+    condition     = var.pull_request == null || contains(["COMMENTS_DISABLED", "COMMENTS_ENABLED", "COMMENTS_ENABLED_FOR_EXTERNAL_CONTRIBUTORS_ONLY"], try(var.pull_request.comment_control, ""))
+    error_message = "pull_request.comment_control must be COMMENTS_ENABLED_FOR_EXTERNAL_CONTRIBUTORS_ONLY, COMMENTS_ENABLED or COMMENTS_DISABLED."
   }
 }
 
